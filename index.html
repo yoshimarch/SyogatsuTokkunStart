@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>通過点</title>
+  <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=M+PLUS+1+Code:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #000;
+      --text: #fff;
+      --dim: #666;
+      --soul-red: #ff0000;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DotGothic16', 'M PLUS 1 Code', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+
+    .container {
+      max-width: 600px;
+      width: 100%;
+      position: relative;
+    }
+
+    .dialog-box {
+      border: 4px solid var(--text);
+      padding: 30px;
+      min-height: 320px;
+      position: relative;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+    }
+
+    .dialog-box.no-cursor {
+      cursor: default;
+    }
+
+    .dialog-text {
+      font-size: 1.25rem;
+      line-height: 2;
+      letter-spacing: 0.05em;
+      flex-grow: 1;
+    }
+
+    .choices {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 25px;
+    }
+
+    .choices.visible {
+      display: flex;
+    }
+
+    .choice-btn {
+      background: transparent;
+      border: 2px solid var(--text);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 1rem;
+      padding: 15px 25px;
+      cursor: pointer;
+      position: relative;
+      text-align: left;
+      transition: all 0.15s ease;
+    }
+
+    .choice-btn:hover,
+    .choice-btn:focus {
+      background: var(--text);
+      color: var(--bg);
+      outline: none;
+      padding-left: 35px;
+    }
+
+    .choice-btn::before {
+      content: '';
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 0;
+      height: 0;
+      border-top: 8px solid transparent;
+      border-bottom: 8px solid transparent;
+      border-left: 12px solid var(--soul-red);
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+
+    .choice-btn:hover::before,
+    .choice-btn:focus::before {
+      opacity: 1;
+    }
+
+    .continue-indicator {
+      position: absolute;
+      bottom: 15px;
+      right: 20px;
+      color: var(--dim);
+      font-size: 1rem;
+      animation: blink 1.5s ease-in-out infinite;
+      display: none;
+    }
+
+    .continue-indicator.visible {
+      display: block;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+
+    .fade-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 1s ease;
+      z-index: 100;
+    }
+
+    .fade-overlay.active {
+      opacity: 1;
+    }
+
+    @media (max-width: 480px) {
+      .dialog-box {
+        padding: 20px;
+        min-height: 280px;
+      }
+
+      .dialog-text {
+        font-size: 1rem;
+      }
+
+      .choice-btn {
+        font-size: 0.875rem;
+        padding: 12px 20px;
+      }
+    }
+
+    /* 横長画面（タブレット横向きなど） */
+    @media (max-height: 500px) {
+      body {
+        padding: 10px;
+      }
+
+      .dialog-box {
+        min-height: auto;
+        max-height: 90vh;
+        overflow-y: auto;
+        padding: 20px;
+      }
+
+      .dialog-text {
+        font-size: 1rem;
+        line-height: 1.8;
+      }
+
+      .choice-btn {
+        padding: 10px 20px;
+      }
+
+      .choices {
+        gap: 8px;
+        margin-top: 15px;
+      }
+    }
+
+    /* さらに狭い横長画面 */
+    @media (max-height: 400px) {
+      .dialog-box {
+        padding: 15px;
+      }
+
+      .dialog-text {
+        font-size: 0.9rem;
+        line-height: 1.6;
+      }
+
+      .choice-btn {
+        padding: 8px 15px;
+        font-size: 0.875rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="fade-overlay" id="fadeOverlay"></div>
+
+  <div class="container">
+    <div class="dialog-box" id="dialogBox">
+      <div class="dialog-text" id="dialogText"></div>
+      <div class="choices" id="choices"></div>
+      <div class="continue-indicator" id="continueIndicator">▼</div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================
+    // 設定
+    // ============================================
+    const DESTINATION_URL = 'https://yoshimarch.github.io/SyougatuTokkunSNDsapporo/'; // ← 遷移先URLをここに設定
+
+    // ============================================
+    // 音声管理
+    // ============================================
+    const audio = {
+      d1: new Audio('./d1.mp3'),  // セリフが出てくる音
+      d2: new Audio('./d2.mp3'),  // 最初にだけ鳴る音
+      d3: new Audio('./d3.mp3'),  // 最後にだけ鳴る音
+      bgm: new Audio('./BGM.mp3') // BGM
+    };
+
+    // BGMはループ再生
+    audio.bgm.loop = true;
+    audio.bgm.volume = 0.3;
+
+    // 効果音の音量
+    audio.d1.volume = 0.5;
+    audio.d2.volume = 0.6;
+    audio.d3.volume = 0.6;
+
+    function playSound(name) {
+      try {
+        const sound = audio[name];
+        if (sound) {
+          sound.currentTime = 0;
+          sound.play().catch(() => {});
+        }
+      } catch (e) {}
+    }
+
+    function startBGM() {
+      try {
+        audio.bgm.play().catch(() => {});
+      } catch (e) {}
+    }
+
+    function stopBGM() {
+      try {
+        audio.bgm.pause();
+        audio.bgm.currentTime = 0;
+      } catch (e) {}
+    }
+
+    // ============================================
+    // 状態管理
+    // ============================================
+    const STORAGE_KEY = 'shogatsu_tokkun_log';
+    
+    const state = {
+      choice: null
+    };
+
+    function saveState() {
+      try {
+        const record = {
+          timestamp: new Date().toISOString(),
+          choice: state.choice
+        };
+        
+        let history = [];
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          history = parsed.history || [];
+        }
+        history.push(record);
+        
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ history }));
+      } catch (e) {
+        console.log('保存失敗');
+      }
+    }
+
+    // ============================================
+    // DOM要素
+    // ============================================
+    const dialogBox = document.getElementById('dialogBox');
+    const dialogText = document.getElementById('dialogText');
+    const choicesEl = document.getElementById('choices');
+    const continueIndicator = document.getElementById('continueIndicator');
+    const fadeOverlay = document.getElementById('fadeOverlay');
+
+    // ============================================
+    // テキスト表示（タイプライター）
+    // ============================================
+    function typeText(lines, callback) {
+      dialogText.innerHTML = '';
+      continueIndicator.classList.remove('visible');
+      let lineIndex = 0;
+      
+      function typeLine() {
+        if (lineIndex >= lines.length) {
+          if (callback) setTimeout(callback, 400);
+          return;
+        }
+        
+        const line = lines[lineIndex];
+        if (line === '') {
+          const br = document.createElement('br');
+          dialogText.appendChild(br);
+          lineIndex++;
+          setTimeout(typeLine, 200);
+          return;
+        }
+        
+        const lineEl = document.createElement('div');
+        dialogText.appendChild(lineEl);
+        
+        let charIndex = 0;
+        const interval = setInterval(() => {
+          if (charIndex < line.length) {
+            lineEl.textContent += line[charIndex];
+            // 文字が出るたびに音を鳴らす（3文字ごと）
+            if (charIndex % 3 === 0) {
+              playSound('d1');
+            }
+            charIndex++;
+          } else {
+            clearInterval(interval);
+            lineIndex++;
+            setTimeout(typeLine, 300);
+          }
+        }, 50);
+      }
+      
+      typeLine();
+    }
+
+    // ============================================
+    // クリックで進む
+    // ============================================
+    function waitForClick(callback) {
+      continueIndicator.classList.add('visible');
+      dialogBox.classList.remove('no-cursor');
+      
+      function onClick() {
+        dialogBox.removeEventListener('click', onClick);
+        continueIndicator.classList.remove('visible');
+        callback();
+      }
+      dialogBox.addEventListener('click', onClick);
+    }
+
+    // ============================================
+    // 選択肢表示
+    // ============================================
+    function showChoices(options, callback) {
+      dialogBox.classList.add('no-cursor');
+      choicesEl.innerHTML = '';
+      options.forEach((opt) => {
+        const btn = document.createElement('button');
+        btn.className = 'choice-btn';
+        btn.textContent = opt.text;
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          choicesEl.classList.remove('visible');
+          callback(opt.value);
+        }, { once: true });
+        choicesEl.appendChild(btn);
+      });
+      choicesEl.classList.add('visible');
+    }
+
+    // ============================================
+    // フェード遷移
+    // ============================================
+    function fadeOut(callback) {
+      fadeOverlay.classList.add('active');
+      setTimeout(callback, 1000);
+    }
+
+    // ============================================
+    // シーン進行（4タップで選択肢へ）
+    // ============================================
+
+    // タップ1: 沈黙と導入
+    function scene_1() {
+      typeText(['……', '', '雪は、', '静かです'], () => {
+        waitForClick(() => {
+          // 最初のクリック後に開始音とBGMを再生
+          playSound('d2');
+          startBGM();
+          scene_2();
+        });
+      });
+    }
+
+    // タップ2: 場所の宣言
+    function scene_2() {
+      typeText([
+        'ここは、',
+        '通過点です',
+        '',
+        '入口でも、',
+        '出口でもありません',
+        '',
+        '長くいる場所では、',
+        'ありません',
+        '',
+        'それでも、',
+        '立ち止まることはできます'
+      ], () => {
+        waitForClick(() => {
+          scene_3();
+        });
+      });
+    }
+
+    // タップ3: 事実と判断
+    function scene_3() {
+      typeText([
+        '正月特訓に、',
+        '来ています',
+        '',
+        'それは、',
+        '判断です',
+        '',
+        '判断は、',
+        '消えません'
+      ], () => {
+        waitForClick(() => {
+          scene_4();
+        });
+      });
+    }
+
+    // タップ4: 詩的パート → 選択肢
+    function scene_4() {
+      typeText([
+        '理由は、',
+        '人の数だけあります',
+        '',
+        'ここに立っていることに、',
+        '名前は',
+        'まだありません',
+        '',
+        'それが',
+        '正解かどうかは、',
+        'まだ先の話です',
+        '',
+        'それでも、',
+        'ここに来たという',
+        '判断は消えません'
+      ], () => {
+        waitForClick(() => {
+          scene_choice();
+        });
+      });
+    }
+
+    // 選択肢
+    function scene_choice() {
+      typeText(['この正月特訓と、', 'どう関わりますか'], () => {
+        showChoices([
+          { text: '中に入る', value: 'enter' },
+          { text: '少し距離を取る', value: 'distance' },
+          { text: '今日は何も決めない', value: 'defer' }
+        ], (value) => {
+          state.choice = value;
+          scene_response(value);
+        });
+      });
+    }
+
+    // 反応
+    function scene_response(choice) {
+      let response;
+      switch (choice) {
+        case 'enter':
+          response = ['踏み出しました'];
+          break;
+        case 'distance':
+          response = ['立ち位置を、', '調整しました'];
+          break;
+        case 'defer':
+          response = ['保留も、', '判断です'];
+          break;
+      }
+      
+      typeText(response, () => {
+        waitForClick(() => {
+          scene_closing();
+        });
+      });
+    }
+
+    // 締めと遷移
+    function scene_closing() {
+      typeText([
+        '……',
+        '',
+        '正月特訓は、',
+        '続いています',
+        '',
+        'あなたの判断も、',
+        '続いています'
+      ], () => {
+        // 保存
+        saveState();
+        waitForClick(() => {
+          scene_transition();
+        });
+      });
+    }
+
+    // 遷移
+    function scene_transition() {
+      typeText(['雪の向こうに、', 'まちがあります'], () => {
+        waitForClick(() => {
+          // 最後の音を鳴らす
+          playSound('d3');
+          stopBGM();
+          
+          fadeOut(() => {
+            window.location.href = DESTINATION_URL;
+          });
+        });
+      });
+    }
+
+    // ============================================
+    // 初期化
+    // ============================================
+    function init() {
+      scene_1();
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
