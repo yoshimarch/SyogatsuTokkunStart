@@ -226,7 +226,8 @@
     // ============================================
     // 設定
     // ============================================
-    const DESTINATION_URL = 'https://yoshimarch.github.io/SyougatuTokkunSNDsapporo/'; // ← 遷移先URLをここに設定
+    const DESTINATION_URL = 'https://yoshimarch.github.io/SyougatuTokkunSNDsapporo/'; // テスト用：ローカルファイル
+    // const DESTINATION_URL = 'https://yoshimarch.github.io/SyogatsuTokkunStart/';
 
     // ============================================
     // 音声管理
@@ -378,6 +379,7 @@
       choicesEl.innerHTML = '';
       options.forEach((opt) => {
         const btn = document.createElement('button');
+        btn.type = 'button';
         btn.className = 'choice-btn';
         btn.textContent = opt.text;
         btn.addEventListener('click', (e) => {
@@ -399,7 +401,7 @@
     }
 
     // ============================================
-    // シーン進行（4タップで選択肢へ）
+    // シーン進行
     // ============================================
 
     // タップ1: 沈黙と導入
@@ -435,17 +437,15 @@
       });
     }
 
-    // タップ3: 事実と判断
+    // タップ3: 事実の静かな確認
     function scene_3() {
       typeText([
-        '正月特訓に、',
-        '来ています',
+        '正月です',
         '',
-        'それは、',
-        '判断です',
+        'それでも、',
+        'ここに来ました',
         '',
-        '判断は、',
-        '消えません'
+        '正月特訓に'
       ], () => {
         waitForClick(() => {
           scene_4();
@@ -453,23 +453,53 @@
       });
     }
 
-    // タップ4: 詩的パート → 選択肢
+    // タップ4: 判断であること
     function scene_4() {
       typeText([
+        'それは、',
+        '判断です',
+        '',
+        '偶然では、',
+        'ありません',
+        '',
         '理由は、',
-        '人の数だけあります',
+        '人の数だけあります'
+      ], () => {
+        waitForClick(() => {
+          scene_5();
+        });
+      });
+    }
+
+    // タップ5: 名前を書くこと
+    function scene_5() {
+      typeText([
+        '試験には、',
+        '名前を書きます',
         '',
-        'ここに立っていることに、',
-        '名前は',
-        'まだありません',
+        'それも、',
+        '判断です',
         '',
-        'それが',
-        '正解かどうかは、',
-        'まだ先の話です',
+        '自分の判断だと、',
+        '刻むこと'
+      ], () => {
+        waitForClick(() => {
+          scene_6();
+        });
+      });
+    }
+
+    // タップ6: 正解と判断
+    function scene_6() {
+      typeText([
+        '正解かどうかは',
+        'あとで決まる',
         '',
-        'それでも、',
-        'ここに来たという',
-        '判断は消えません'
+        'それは',
+        '自分ではどうにもならない',
+        '',
+        '自分の判断かどうかは',
+        '必ず引き受けることができる'
       ], () => {
         waitForClick(() => {
           scene_choice();
@@ -479,7 +509,12 @@
 
     // 選択肢
     function scene_choice() {
-      typeText(['この正月特訓と、', 'どう関わりますか'], () => {
+      typeText([
+        '正月特訓に来ています',
+        '',
+        'この時間と、',
+        'どう関わりますか'
+      ], () => {
         showChoices([
           { text: '中に入る', value: 'enter' },
           { text: '少し距離を取る', value: 'distance' },
@@ -513,7 +548,7 @@
       });
     }
 
-    // 締めと遷移
+    // 締め
     function scene_closing() {
       typeText([
         '……',
@@ -537,11 +572,16 @@
       typeText(['雪の向こうに、', 'まちがあります'], () => {
         waitForClick(() => {
           // 最後の音を鳴らす
-          playSound('d3');
-          stopBGM();
+          try {
+            playSound('d3');
+            stopBGM();
+          } catch (e) {}
           
           fadeOut(() => {
-            window.location.href = DESTINATION_URL;
+            // 少し遅延を入れて確実に遷移
+            setTimeout(() => {
+              window.location.replace(DESTINATION_URL);
+            }, 100);
           });
         });
       });
@@ -550,7 +590,11 @@
     // ============================================
     // 初期化
     // ============================================
+    let initialized = false;
+    
     function init() {
+      if (initialized) return;
+      initialized = true;
       scene_1();
     }
 
